@@ -416,3 +416,12 @@ FodyWeavers.xsd
 *.msix
 *.msm
 *.msp
+# Python/Node (future)
+__pycache__/
+*.pyc
+.venv/
+node_modules/
+
+# OS
+.DS_Store
+Thumbs.db
