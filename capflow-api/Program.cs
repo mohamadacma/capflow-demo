@@ -85,6 +85,8 @@ app.MapGet("/metrics", async (AppDb db) => {
      return Results.Ok(new { total, approved, avgApprovalHours = Math.Round(avgHours, 2) });
 });
 
+
+
 //GET 
 app.MapGet("/requests/{id:guid}", async (Guid id, AppDb db) =>
     await db.Requests.Include(r => r.Actions).FirstOrDefaultAsync(r => r.Id == id) is { } req
