@@ -10,6 +10,8 @@ builder.Services.AddDbContext<AppDb>(o => o.UseSqlite("Data Source=capflow.db"))
 builder.Services.AddEndpointsApiExplorer();
 
 var app = builder.Build();
+app.UseDefaultFiles();
+app.UseStaticFiles();
 
 using (var scope = app.Services.CreateScope())
 {
@@ -40,7 +42,7 @@ app.MapPost("/requests", async (AppDb db, Request r) =>
     if (string.IsNullOrWhiteSpace(r.Title) || string.IsNullOrWhiteSpace(r.RequestedBy))
         return Results.BadRequest(new { error = "Title and RequestedBy are required." });
 
-        
+
     r.Status = "Pending";
     db.Requests.Add(r);
     await db.SaveChangesAsync();

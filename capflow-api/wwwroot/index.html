@@ -1,0 +1,95 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <title>CapFlow Demo</title>
+  <style>
+    body { font-family: system-ui, Arial, sans-serif; margin: 24px; }
+    h1 { margin-bottom: 8px; }
+    .card { border: 1px solid #ddd; border-radius: 12px; padding: 16px; margin-bottom: 16px; }
+    input, textarea, select, button { padding: 8px; margin: 4px 0; }
+    table { border-collapse: collapse; width: 100%; }
+    th, td { border: 1px solid #eee; padding: 8px; text-align: left; }
+    .pill { padding: 2px 8px; border-radius: 999px; background: #f2f2f2; font-size: 12px; }
+    .id { font-size: 12px; color: #666; }
+  </style>
+</head>
+<body>
+  <h1>CapFlow —Requests & Approvals</h1>
+
+  <div class="card">
+    <h3>New Request</h3>
+    <div><label>Title</label><br><input id="title" placeholder="Change incubation temp"/></div>
+    <div><label>Type</label><br>
+      <select id="type"><option>SOP Change</option><option>Deviation</option><option>Access</option></select>
+    </div>
+    <div><label>Description</label><br><textarea id="desc" rows="3" placeholder="Update step 3 to 38C"></textarea></div>
+    <div><label>Requested By</label><br><input id="reqby" placeholder="alice@lab"/></div>
+    <div><label><input type="checkbox" id="capa"/> Requires CAPA</label></div>
+    <button onclick="createRequest()">Submit</button>
+    <span id="createMsg"></span>
+  </div>
+
+  <div class="card">
+    <h3>Metrics</h3>
+    <pre id="metrics">loading…</pre>
+  </div>
+
+  <div class="card">
+    <h3>Requests</h3>
+    <button onclick="loadRequests()">Refresh</button>
+    <table>
+      <thead><tr><th>Id</th><th>Title</th><th>Type</th><th>Status</th><th>Actions</th></tr></thead>
+      <tbody id="rows"></tbody>
+    </table>
+  </div>
+
+<script>
+async function createRequest(){
+  const body = {
+    title: document.getElementById('title').value.trim(),
+    type: document.getElementById('type').value,
+    description: document.getElementById('desc').value.trim(),
+    requestedBy: document.getElementById('reqby').value.trim(),
+    requiresCAPA: document.getElementById('capa').checked
+  };
+  const res = await fetch('/requests', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+  const msg = document.getElementById('createMsg');
+  if(res.ok){ msg.textContent = 'Created ✓'; loadRequests(); loadMetrics(); }
+  else { const j = await res.json().catch(()=>({})); msg.textContent = 'Error: ' + (j.error || res.status); }
+}
+
+async function loadMetrics(){
+  const res = await fetch('/metrics'); const j = await res.json();
+  document.getElementById('metrics').textContent = JSON.stringify(j, null, 2);
+}
+
+async function loadRequests(){
+  const res = await fetch('/requests'); const list = await res.json();
+  const tbody = document.getElementById('rows'); tbody.innerHTML = '';
+  list.forEach(r=>{
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="id">${r.id}</td>
+      <td>${r.title}</td>
+      <td>${r.type}</td>
+      <td><span class="pill">${r.status}</span></td>
+      <td>
+        <button onclick="decide('${r.id}','Approved', ${r.requiresCAPA})">Approve</button>
+        <button onclick="decide('${r.id}','Rejected', false)">Reject</button>
+      </td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+async function decide(id, outcome, createCapa){
+  const q = new URLSearchParams({ actor:'bob@qa', outcome, createCapa: String(createCapa) });
+  const res = await fetch(`/requests/${id}/decision?`+q.toString(), { method:'POST' });
+  if(res.ok){ await loadRequests(); await loadMetrics(); }
+  else { alert('Decision failed: ' + res.status); }
+}
+
+loadMetrics(); loadRequests();
+</script>
+</body>
+</html>
