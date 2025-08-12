@@ -37,6 +37,10 @@ app.MapGet("/requests", async (AppDb db) =>
 // Approve/Reject
 app.MapPost("/requests", async (AppDb db, Request r) =>
 {
+    if (string.IsNullOrWhiteSpace(r.Title) || string.IsNullOrWhiteSpace(r.RequestedBy))
+        return Results.BadRequest(new { error = "Title and RequestedBy are required." });
+
+        
     r.Status = "Pending";
     db.Requests.Add(r);
     await db.SaveChangesAsync();
@@ -78,5 +82,18 @@ app.MapGet("/metrics", async (AppDb db) => {
         approvedRows.Average(x => (x.ApprovedAt!.Value - x.CreatedAt).TotalHours);
      return Results.Ok(new { total, approved, avgApprovalHours = Math.Round(avgHours, 2) });
 });
+
+//GET 
+app.MapGet("/requests/{id:guid}", async (Guid id, AppDb db) =>
+    await db.Requests.Include(r => r.Actions).FirstOrDefaultAsync(r => r.Id == id) is { } req
+        ? Results.Ok(req) : Results.NotFound());
+
+// GET pending only
+app.MapGet("/requests/pending", async (AppDb db) =>
+    await db.Requests.Where(r => r.Status == "Pending")
+                        .Include(r => r.Actions).ToListAsync());
+
+// CAPA list
+app.MapGet("/capas", async (AppDb db) => await db.CAPAs.ToListAsync());
 
 app.Run();

@@ -425,3 +425,4 @@ node_modules/
 # OS
 .DS_Store
 Thumbs.db
+capflow-api/capflow.db

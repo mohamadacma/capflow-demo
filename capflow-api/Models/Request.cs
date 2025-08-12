@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Text.Json.Serialization;
 
 namespace CapFlow.Models;
 
@@ -19,6 +20,8 @@ public class Request {
 public class ApprovalAction {
     public int Id { get; set; }
     public Guid RequestId { get; set; }
+
+    [JsonIgnore]
     public Request? Request { get; set; }
     public string Actor { get; set; } = "";  
     public string Outcome { get; set; } = "";
