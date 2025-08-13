@@ -26,7 +26,9 @@ using (var scope = app.Services.CreateScope())
     db.Database.EnsureCreated();
 }
 
-
+/// <summary>
+/// Add sample demo users so you can test without creating accounts.
+/// </summary>
 // seed demo users
 app.MapGet("/seed", async (AppDb db) => {
     if (!await db.Users.AnyAsync()) {
@@ -39,10 +41,16 @@ app.MapGet("/seed", async (AppDb db) => {
     return Results.Ok("seeded");
 }).WithSummary("Seed demo users").WithOpenApi();
 
+/// <summary>
+/// Show all requests in the system, including their history of actions.
+/// </summary>
 //List requests
 app.MapGet("/requests", async (AppDb db) =>
     await db.Requests.Include(r => r.Actions).ToListAsync());
 
+/// <summary>
+/// Create a new request (example: SOP change, deviation, etc.).
+/// </summary>
 // Approve/Reject
 app.MapPost("/requests", async (AppDb db, Request r) =>
 {
@@ -57,6 +65,11 @@ app.MapPost("/requests", async (AppDb db, Request r) =>
 }).WithSummary("Create a request").WithOpenApi();
 
 
+/// <summary>
+/// Approve or reject a request.  
+/// Only users with the QA role can approve/reject.  
+/// Optionally creates a CAPA record if needed.
+/// </summary>
 app.MapPost("/requests/{id:guid}/decision",
     async (Guid id, AppDb db,
            [FromHeader(Name = "X-User-Role")] string? role,   // QA-only 
@@ -117,6 +130,10 @@ app.MapGet("/metrics", async (AppDb db) => {
 }).WithSummary("Key approval KPIs")
   .WithOpenApi();
 
+/// <summary>
+/// Export a full history of approvals into a CSV file.  
+/// This is useful for auditors who want a copy of all decisions.
+/// </summary>
 //CSV export
 app.MapGet("/export/approvals.csv", async (AppDb db) =>
 {
@@ -133,18 +150,24 @@ app.MapGet("/export/approvals.csv", async (AppDb db) =>
 }).WithSummary("Audit export (CSV)").WithOpenApi();
 
 
-
-//GET 
+/// <summary>
+/// Get one request by its unique ID, including its action history.
+/// </summary>
 app.MapGet("/requests/{id:guid}", async (Guid id, AppDb db) =>
     await db.Requests.Include(r => r.Actions).FirstOrDefaultAsync(r => r.Id == id) is { } req
         ? Results.Ok(req) : Results.NotFound());
 
-// GET pending only
+
+/// <summary>
+/// List only the requests that are still pending a decision.
+/// </summary>
 app.MapGet("/requests/pending", async (AppDb db) =>
     await db.Requests.Where(r => r.Status == "Pending")
                         .Include(r => r.Actions).ToListAsync());
 
-// CAPA list
+/// <summary>
+/// Show all CAPA (Corrective and Preventive Action) records in the system.
+/// </summary>
 app.MapGet("/capas", async (AppDb db) => await db.CAPAs.ToListAsync())
 .WithSummary("List CAPA records").WithOpenApi();
 
