@@ -1,6 +1,8 @@
 using CapFlow.Data;
 using CapFlow.Models;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.OpenApi;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -8,10 +10,15 @@ builder.WebHost.UseUrls("http://localhost:5001");
 
 builder.Services.AddDbContext<AppDb>(o => o.UseSqlite("Data Source=capflow.db"));
 builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
 
 var app = builder.Build();
+app.UseSwagger();
+app.UseSwaggerUI();
+
 app.UseDefaultFiles();
 app.UseStaticFiles();
+
 
 using (var scope = app.Services.CreateScope())
 {
@@ -50,28 +57,49 @@ app.MapPost("/requests", async (AppDb db, Request r) =>
 });
 
 
-app.MapPost("/requests/{id:guid}/decision", async (Guid id, AppDb db,
-string actor, string outcome, string? notes, bool createCapa = false) =>
+app.MapPost("/requests/{id:guid}/decision",
+    async (Guid id, AppDb db,
+           [FromHeader(Name = "X-User-Role")] string? role,   // QA-only 
+           [FromQuery] string actor,
+           [FromQuery] string outcome,
+           [FromQuery] string? notes,
+           [FromQuery] bool createCapa = false) =>
 {
+    // enforce QA-only approvals
+    if (!string.Equals(role, "QA", StringComparison.OrdinalIgnoreCase))
+        return Results.StatusCode(403);
+
     var req = await db.Requests.FindAsync(id);
     if (req is null) return Results.NotFound();
 
     db.ApprovalActions.Add(new ApprovalAction {
-        RequestId = id, Actor = actor, Outcome = outcome, Notes = notes ?? ""
+        RequestId = id,
+        Actor = actor,
+        Outcome = outcome,
+        Notes = notes ?? ""
+    });
+
+    if (string.Equals(outcome, "Approved", StringComparison.OrdinalIgnoreCase))
+    {
+        req.Status = "Approved";
+        req.ApprovedAt = DateTime.UtcNow;
+        if (createCapa)
+            db.CAPAs.Add(new CAPA { RequestId = id, Owner = actor });
+    }
+    else
+    {
+        req.Status = "Rejected";
+    }
+
+    await db.SaveChangesAsync();
+    return Results.Ok(req);
 });
 
-if (outcome == "Approved") {
-    req.Status = "Approved";
-    req.ApprovedAt = DateTime.UtcNow;
-    if (createCapa) db.CAPAs.Add(new CAPA { RequestId = id, Owner = actor });
-} else {
-    req.Status = "Rejected";
-}
 
-await db.SaveChangesAsync();
-return Results.Ok(req);
-});
-
+/// <summary>
+/// Key approval KPIs
+/// </summary>
+/// <returns>Metrics for requests</returns>
 //metrics
 app.MapGet("/metrics", async (AppDb db) => {
     var total = await db.Requests.CountAsync();
@@ -82,7 +110,26 @@ app.MapGet("/metrics", async (AppDb db) => {
         .ToListAsync();
     var avgHours = approvedRows.Count == 0 ? 0 :
         approvedRows.Average(x => (x.ApprovedAt!.Value - x.CreatedAt).TotalHours);
-     return Results.Ok(new { total, approved, avgApprovalHours = Math.Round(avgHours, 2) });
+     return Results.Ok(new 
+     { 
+        total, approved, avgApprovalHours = Math.Round(avgHours, 2) 
+        });
+}).WithSummary("Key approval KPIs")
+  .WithOpenApi();
+
+//CSV export
+app.MapGet("/export/approvals.csv", async (AppDb db) =>
+{
+    var rows = await db.ApprovalActions
+        .OrderBy(a => a.At)
+        .Select(a => new { a.Id, a.RequestId, a.Actor, a.Outcome, a.Notes, a.At })
+        .ToListAsync();
+
+    string esc(string? s) => "\"" + (s ?? "").Replace("\"","\"\"") + "\"";
+    var header = "Id,RequestId,Actor,Outcome,Notes,At";
+    var lines = rows.Select(r => $"{r.Id},{r.RequestId},{esc(r.Actor)},{r.Outcome},{esc(r.Notes)},{r.At:O}");
+    var csv = string.Join("\n", new[]{header}.Concat(lines));
+    return Results.Text(csv, "text/csv");
 });
 
 
