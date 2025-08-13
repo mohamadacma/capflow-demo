@@ -37,7 +37,7 @@ app.MapGet("/seed", async (AppDb db) => {
         await db.SaveChangesAsync();
     }
     return Results.Ok("seeded");
-});
+}).WithSummary("Seed demo users").WithOpenApi();
 
 //List requests
 app.MapGet("/requests", async (AppDb db) =>
@@ -54,7 +54,7 @@ app.MapPost("/requests", async (AppDb db, Request r) =>
     db.Requests.Add(r);
     await db.SaveChangesAsync();
     return Results.Created($"/requests/{r.Id}", r);
-});
+}).WithSummary("Create a request").WithOpenApi();
 
 
 app.MapPost("/requests/{id:guid}/decision",
@@ -93,7 +93,7 @@ app.MapPost("/requests/{id:guid}/decision",
 
     await db.SaveChangesAsync();
     return Results.Ok(req);
-});
+}).WithSummary("Approve/Reject a request").WithOpenApi();
 
 
 /// <summary>
@@ -130,7 +130,7 @@ app.MapGet("/export/approvals.csv", async (AppDb db) =>
     var lines = rows.Select(r => $"{r.Id},{r.RequestId},{esc(r.Actor)},{r.Outcome},{esc(r.Notes)},{r.At:O}");
     var csv = string.Join("\n", new[]{header}.Concat(lines));
     return Results.Text(csv, "text/csv");
-});
+}).WithSummary("Audit export (CSV)").WithOpenApi();
 
 
 
@@ -145,6 +145,7 @@ app.MapGet("/requests/pending", async (AppDb db) =>
                         .Include(r => r.Actions).ToListAsync());
 
 // CAPA list
-app.MapGet("/capas", async (AppDb db) => await db.CAPAs.ToListAsync());
+app.MapGet("/capas", async (AppDb db) => await db.CAPAs.ToListAsync())
+.WithSummary("List CAPA records").WithOpenApi();
 
 app.Run();
